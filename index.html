@@ -15,6 +15,7 @@
       --compression-color: #2563eb;
       --zero-color: #94a3b8;
       --accent-color: #d97706;
+      --angle-color: #059669;
     }
 
     * {
@@ -100,11 +101,31 @@
       border-color: #2563eb;
     }
 
+    .preset-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
     .preset-question {
       font-size: 0.88rem;
       color: #334155;
       font-style: italic;
       line-height: 1.4;
+      flex: 1;
+    }
+
+    .angle-badge {
+      background: #ecfdf5;
+      color: #047857;
+      border: 1px solid #a7f3d0;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      white-space: nowrap;
     }
 
     .control-group {
@@ -127,12 +148,19 @@
       cursor: pointer;
     }
 
+    .checkboxes-row {
+      grid-column: 1 / -1;
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
     .checkbox-group {
+      display: flex;
       flex-direction: row;
       align-items: center;
       gap: 8px;
       cursor: pointer;
-      margin-top: 18px;
     }
 
     .checkbox-group input {
@@ -189,6 +217,7 @@
       background: #f8fafc;
       border-radius: 6px;
       border: 1px solid var(--border-color);
+      flex-wrap: wrap;
     }
 
     .legend-item {
@@ -231,6 +260,21 @@
       rx: 3;
     }
 
+    .angle-arc {
+      fill: none;
+      stroke: var(--angle-color);
+      stroke-width: 2;
+      stroke-dasharray: 3 2;
+    }
+
+    .angle-text {
+      font-size: 11px;
+      font-weight: bold;
+      fill: var(--angle-color);
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+
     .instruction-tip {
       font-size: 0.8rem;
       color: var(--accent-color);
@@ -244,7 +288,7 @@
 <div class="container">
   <header>
     <h1>Interactive Truss Analysis Solver</h1>
-    <p class="subtitle">Select a preset below, or drag the load arrow directly on the canvas.</p>
+    <p class="subtitle">Select a preset below, inspect member forces & angles, or drag the load arrow directly on the canvas.</p>
   </header>
 
   <!-- Control Panel -->
@@ -259,7 +303,10 @@
         <option value="4">5. Full Warren Bridge</option>
         <option value="5">6. Pratt vs. Warren</option>
       </select>
-      <p class="preset-question" id="presetQuestion"></p>
+      <div class="preset-info">
+        <p class="preset-question" id="presetQuestion"></p>
+        <span class="angle-badge" id="angleBadge">Diagonal Angle: ∠ 52.4°</span>
+      </div>
     </div>
 
     <div class="control-group">
@@ -272,9 +319,16 @@
       <input type="range" id="magSelect" min="0" max="100" value="50" step="5">
     </div>
 
-    <div class="control-group checkbox-group">
-      <input type="checkbox" id="toggleValues" checked>
-      <label for="toggleValues" style="cursor:pointer;">Show Member Force Values</label>
+    <div class="checkboxes-row">
+      <div class="checkbox-group">
+        <input type="checkbox" id="toggleValues" checked>
+        <label for="toggleValues" style="cursor:pointer;">Show Force Values</label>
+      </div>
+
+      <div class="checkbox-group">
+        <input type="checkbox" id="toggleAngles" checked>
+        <label for="toggleAngles" style="cursor:pointer;">Show Joint Angles (∠)</label>
+      </div>
     </div>
 
     <button class="btn-reset" id="resetBtn">Reset to Preset Default</button>
@@ -294,6 +348,10 @@
       <div class="legend-color" style="background: var(--zero-color);"></div>
       <span>Zero-Force (0)</span>
     </div>
+    <div class="legend-item">
+      <div class="legend-color" style="background: var(--angle-color);"></div>
+      <span>Joint Angle (∠)</span>
+    </div>
   </div>
 
   <p class="instruction-tip">💡 Tip: Drag the orange load arrow to reposition or scale force in real-time!</p>
@@ -308,11 +366,14 @@
         </marker>
       </defs>
       
-      <!-- Supports & Grid layer -->
+      <!-- Supports Layer -->
       <g id="supportsGroup"></g>
 
       <!-- Truss Members Layer -->
       <g id="membersGroup"></g>
+
+      <!-- Angle Indicators Layer -->
+      <g id="anglesGroup"></g>
 
       <!-- Labels Layer -->
       <g id="labelsGroup"></g>
@@ -331,7 +392,7 @@
   const presets = [
     {
       name: "1. Bridge with Rectangular Segments",
-      question: "💬 Observation: Bridges are almost never built this way because rectangular frames lack triangulation stability.",
+      question: "💬 Observation: Rectangular segments lack diagonal triangulation, creating an unstable frame mechanism.",
       nodes: [
         { id: 0, x: 100, y: 220, label: "B0" },
         { id: 1, x: 300, y: 220, label: "B1" },
@@ -354,7 +415,7 @@
     },
     {
       name: "2. Warren Bridge with Triangular Segments",
-      question: "💬 Observation: Notice how triangular bays distribute forces efficiently across top and bottom chords without needing vertical posts.",
+      question: "💬 Observation: Notice how triangular bays distribute forces efficiently across top and bottom chords.",
       nodes: [
         { id: 0, x: 100, y: 220, label: "B0" },
         { id: 1, x: 300, y: 220, label: "B1" },
@@ -377,7 +438,7 @@
     },
     {
       name: "3. Smaller Scale Warren Bridge",
-      question: "💬 Question: How do member forces change when doubling the number of bays over the same span distance?",
+      question: "💬 Question: Steeper diagonal angle (∠ 69.0°) halves member horizontal runs while increasing vertical force transfer.",
       nodes: [
         { id: 0, x: 100, y: 220, label: "B0" },
         { id: 1, x: 200, y: 220, label: "B1" },
@@ -391,7 +452,7 @@
         { id: 9, x: 350, y: 90,  label: "T3" },
         { id: 10, x: 450, y: 90, label: "T4" },
         { id: 11, x: 550, y: 90, label: "T5" },
-        { id: 12, "x": 650, y: 90, label: "T6" }
+        { id: 12, x: 650, y: 90, label: "T6" }
       ],
       members: [
         { n1: 0, n2: 1 }, { n1: 1, n2: 2 }, { n1: 2, n2: 3 }, { n1: 3, n2: 4 }, { n1: 4, n2: 5 }, { n1: 5, n2: 6 },
@@ -463,7 +524,7 @@
     },
     {
       name: "6. Pratt vs. Warren",
-      question: "💬 Observation: In a Pratt truss under gravity load, diagonals act in tension (+) while shorter verticals act in compression (-).",
+      question: "💬 Observation: In a Pratt truss, diagonals (∠ 52.4°) act in tension (+) while verticals act in compression (-).",
       nodes: [
         { id: 0, x: 100, y: 220, label: "B0" },
         { id: 1, x: 200, y: 220, label: "B1" },
@@ -495,22 +556,34 @@
   ];
 
   // Interactive State
-  let currentPresetIdx = 3; // Default to Preset 4
+  let currentPresetIdx = 3; 
   let loadNodeSelectIdx = 4;
-  let loadMagnitude = 50; // kN
+  let loadMagnitude = 50; 
   let showValues = true;
+  let showAngles = true;
   let isDragging = false;
 
   // DOM Elements
   const presetSelect = document.getElementById('presetSelect');
   const presetQuestion = document.getElementById('presetQuestion');
+  const angleBadge = document.getElementById('angleBadge');
   const nodeSelect = document.getElementById('nodeSelect');
   const magSelect = document.getElementById('magSelect');
   const nodeVal = document.getElementById('nodeVal');
   const magVal = document.getElementById('magVal');
   const toggleValues = document.getElementById('toggleValues');
+  const toggleAngles = document.getElementById('toggleAngles');
   const resetBtn = document.getElementById('resetBtn');
   const svg = document.getElementById('trussSvg');
+
+  // Utility: Calculate angle relative to horizontal chord (deg)
+  function getMemberAngle(n1, n2) {
+    const dx = Math.abs(n2.x - n1.x);
+    const dy = Math.abs(n2.y - n1.y);
+    if (dx === 0) return 90.0;
+    if (dy === 0) return 0.0;
+    return (Math.atan2(dy, dx) * 180 / Math.PI);
+  }
 
   // Matrix Structural Solver (2D Direct Stiffness Method)
   function solveTruss(nodes, members, pinIdx, rollerIdx, loadNodeIdx, loadMag) {
@@ -519,7 +592,6 @@
     let K = Array(dof).fill(0).map(() => Array(dof).fill(0));
     let F = Array(dof).fill(0);
 
-    // Downward vertical force (+Y in SVG coords)
     if (loadNodeIdx >= 0 && loadNodeIdx < numNodes) {
       F[loadNodeIdx * 2 + 1] = loadMag; 
     }
@@ -551,12 +623,10 @@
       }
     });
 
-    // Stabilization term for unstable non-triangulated frames (e.g., Preset 1)
     for (let i = 0; i < dof; i++) {
       K[i][i] += 1e-3;
     }
 
-    // Boundary Conditions: Pin at pinIdx (X,Y), Roller at rollerIdx (Y)
     const fixedDOFs = [pinIdx * 2, pinIdx * 2 + 1, rollerIdx * 2 + 1];
     const freeDOFs = [];
     for (let i = 0; i < dof; i++) {
@@ -634,7 +704,7 @@
     return x;
   }
 
-  // Render Functions
+  // Render Supports
   function renderSupports() {
     const preset = presets[currentPresetIdx];
     const pin = preset.nodes[preset.pinNode];
@@ -654,6 +724,63 @@
     `;
   }
 
+  // Render Visual Angle Arcs and Symbols (∠) at Joint Vertices
+  function renderAngles(preset) {
+    const anglesGroup = document.getElementById('anglesGroup');
+    anglesGroup.innerHTML = '';
+
+    if (!showAngles) return;
+
+    // Loop through diagonal members and draw angle arcs at the base joints
+    preset.members.forEach(m => {
+      const n1 = preset.nodes[m.n1];
+      const n2 = preset.nodes[m.n2];
+
+      // Check if member is diagonal
+      if (n1.x !== n2.x && n1.y !== n2.y) {
+        // Find bottom joint vertex
+        const bottomNode = (n1.y > n2.y) ? n1 : n2;
+        const topNode = (n1.y > n2.y) ? n2 : n1;
+
+        const dx = topNode.x - bottomNode.x;
+        const dy = topNode.y - bottomNode.y;
+        const angleDeg = Math.abs(Math.atan2(Math.abs(dy), Math.abs(dx)) * 180 / Math.PI);
+
+        const dirX = dx > 0 ? 1 : -1;
+        const r = 24; // Arc radius
+
+        // Calculate arc start/end points
+        const startX = bottomNode.x + dirX * r;
+        const startY = bottomNode.y;
+
+        const endAngleRad = dirX > 0 ? -angleDeg * Math.PI / 180 : Math.PI + angleDeg * Math.PI / 180;
+        const endX = bottomNode.x + r * Math.cos(endAngleRad);
+        const endY = bottomNode.y + r * Math.sin(endAngleRad);
+
+        const sweepFlag = dirX > 0 ? 0 : 1;
+
+        // Create SVG arc path
+        const arcPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        arcPath.setAttribute('d', `M ${startX} ${startY} A ${r} ${r} 0 0 ${sweepFlag} ${endX} ${endY}`);
+        arcPath.classList.add('angle-arc');
+        anglesGroup.appendChild(arcPath);
+
+        // Position text with Angle Symbol (∠) inside sector
+        const midAngleRad = dirX > 0 ? -angleDeg / 2 * Math.PI / 180 : Math.PI + angleDeg / 2 * Math.PI / 180;
+        const textR = r + 15;
+        const textX = bottomNode.x + textR * Math.cos(midAngleRad);
+        const textY = bottomNode.y + textR * Math.sin(midAngleRad);
+
+        const arcText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        arcText.setAttribute('x', textX);
+        arcText.setAttribute('y', textY);
+        arcText.classList.add('angle-text');
+        arcText.textContent = `∠ ${angleDeg.toFixed(1)}°`;
+        anglesGroup.appendChild(arcText);
+      }
+    });
+  }
+
   function render() {
     const preset = presets[currentPresetIdx];
     const activeLoadNode = preset.loadableNodes[loadNodeSelectIdx];
@@ -661,8 +788,23 @@
     const maxForce = Math.max(...forces.map(Math.abs), 1);
 
     renderSupports();
+    renderAngles(preset);
 
-    // 1. Render Members
+    // Get primary diagonal angle for header badge
+    const sampleDiag = preset.members.find(m => {
+      const n1 = preset.nodes[m.n1], n2 = preset.nodes[m.n2];
+      return n1.x !== n2.x && n1.y !== n2.y;
+    });
+
+    if (sampleDiag) {
+      const diagAngle = getMemberAngle(preset.nodes[sampleDiag.n1], preset.nodes[sampleDiag.n2]);
+      angleBadge.textContent = `Diagonal Angle: ∠ ${diagAngle.toFixed(1)}°`;
+      angleBadge.style.display = 'inline-block';
+    } else {
+      angleBadge.style.display = 'none'; // Preset 1 (Rectangular / No diagonals)
+    }
+
+    // 1. Render Members & Labels
     const membersGroup = document.getElementById('membersGroup');
     const labelsGroup = document.getElementById('labelsGroup');
     membersGroup.innerHTML = '';
@@ -672,6 +814,7 @@
       const n1 = preset.nodes[m.n1];
       const n2 = preset.nodes[m.n2];
       const f = forces[idx];
+      const angle = getMemberAngle(n1, n2);
 
       let strokeColor = '#94a3b8'; // Zero force
       if (f > 0.05) strokeColor = '#ef4444';      // Tension (+)
@@ -690,16 +833,19 @@
       line.classList.add('member-line');
       membersGroup.appendChild(line);
 
-      // Labels
+      // Labels (Force + Angle with Angle Symbol)
       const midX = (n1.x + n2.x) / 2;
       const midY = (n1.y + n2.y) / 2;
 
-      let displayText = "";
-      if (m.tag) displayText += `${m.tag}: `;
-      displayText += `${Math.abs(f).toFixed(1)} kN`;
+      let labelParts = [];
+      if (m.tag) labelParts.push(`${m.tag}:`);
+      if (showValues) labelParts.push(`${Math.abs(f).toFixed(1)} kN`);
+      if (showAngles && angle > 0 && angle < 90) labelParts.push(`∠ ${angle.toFixed(1)}°`);
 
-      if (showValues) {
-        const boxWidth = displayText.length * 6.5 + 8;
+      if (labelParts.length > 0) {
+        const displayText = labelParts.join(' ');
+        const boxWidth = displayText.length * 6.4 + 8;
+
         const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
         rect.setAttribute('x', midX - boxWidth / 2);
         rect.setAttribute('y', midY - 9);
@@ -772,7 +918,6 @@
     magSelect.value = loadMagnitude;
   }
 
-  // Change preset logic
   function switchPreset(index) {
     currentPresetIdx = index;
     const preset = presets[currentPresetIdx];
@@ -780,7 +925,7 @@
     render();
   }
 
-  // --- Interaction & Events ---
+  // --- Interaction & Event Handlers ---
   presetSelect.addEventListener('change', (e) => {
     switchPreset(parseInt(e.target.value));
   });
@@ -800,12 +945,19 @@
     render();
   });
 
+  toggleAngles.addEventListener('change', (e) => {
+    showAngles = e.target.checked;
+    render();
+  });
+
   resetBtn.addEventListener('click', () => {
     const preset = presets[currentPresetIdx];
     loadNodeSelectIdx = preset.defaultLoadNodeIdx;
     loadMagnitude = 50;
     showValues = true;
+    showAngles = true;
     toggleValues.checked = true;
+    toggleAngles.checked = true;
     render();
   });
 
@@ -829,7 +981,6 @@
     const coords = getSVGCoords(e.touches ? e.touches[0] : e);
     const preset = presets[currentPresetIdx];
 
-    // Find closest loadable node
     let closestSelectIdx = 0;
     let minDist = Infinity;
     preset.loadableNodes.forEach((nodeIdx, selIdx) => {
@@ -842,7 +993,6 @@
     });
     loadNodeSelectIdx = closestSelectIdx;
 
-    // Magnitude adjustment via vertical drag
     const activeLoadNode = preset.nodes[preset.loadableNodes[loadNodeSelectIdx]];
     const dy = coords.y - activeLoadNode.y;
     if (dy > 10) {
@@ -866,7 +1016,7 @@
   window.addEventListener('touchmove', handleMove, { passive: true });
   window.addEventListener('touchend', handleEnd);
 
-  // Initialize Default
+  // Initialize Default Preset
   switchPreset(3);
 </script>
 </body>
