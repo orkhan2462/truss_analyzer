@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Interactive Truss Analysis</title>
+  <title>Interactive Truss Analysis Solver</title>
   <style>
     :root {
       --bg-color: #f8fafc;
@@ -70,6 +70,41 @@
       background: #f1f5f9;
       padding: 16px;
       border-radius: 8px;
+    }
+
+    .preset-container {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      background: #ffffff;
+      padding: 12px 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+
+    select {
+      width: 100%;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #0f172a;
+      background-color: #f8fafc;
+      cursor: pointer;
+      outline: none;
+    }
+
+    select:focus {
+      border-color: #2563eb;
+    }
+
+    .preset-question {
+      font-size: 0.88rem;
+      color: #334155;
+      font-style: italic;
+      line-height: 1.4;
     }
 
     .control-group {
@@ -209,11 +244,24 @@
 <div class="container">
   <header>
     <h1>Interactive Truss Analysis Solver</h1>
-    <p class="subtitle">Drag the orange arrow to shift the load location or adjust load magnitude.</p>
+    <p class="subtitle">Select a preset below, or drag the load arrow directly on the canvas.</p>
   </header>
 
   <!-- Control Panel -->
   <div class="controls">
+    <div class="preset-container">
+      <label for="presetSelect">Choose Truss Design Preset:</label>
+      <select id="presetSelect">
+        <option value="0">1. Bridge with Rectangular Segments</option>
+        <option value="1">2. Warren Bridge with Triangular Segments</option>
+        <option value="2">3. Smaller Scale Warren Bridge</option>
+        <option value="3" selected>4. Warren Bridge with Verticals</option>
+        <option value="4">5. Full Warren Bridge</option>
+        <option value="5">6. Pratt vs. Warren</option>
+      </select>
+      <p class="preset-question" id="presetQuestion"></p>
+    </div>
+
     <div class="control-group">
       <label for="nodeSelect">Load Position: <span id="nodeVal">Joint B4</span></label>
       <input type="range" id="nodeSelect" min="0" max="6" value="4" step="1">
@@ -229,7 +277,7 @@
       <label for="toggleValues" style="cursor:pointer;">Show Member Force Values</label>
     </div>
 
-    <button class="btn-reset" id="resetBtn">Reset to Default</button>
+    <button class="btn-reset" id="resetBtn">Reset to Preset Default</button>
   </div>
 
   <!-- Legend -->
@@ -248,7 +296,7 @@
     </div>
   </div>
 
-  <p class="instruction-tip">💡 Tip: You can drag the load arrow directly on the canvas below!</p>
+  <p class="instruction-tip">💡 Tip: Drag the orange load arrow to reposition or scale force in real-time!</p>
 
   <!-- SVG Drawing Canvas -->
   <div class="canvas-container">
@@ -279,53 +327,183 @@
 </div>
 
 <script>
-  // --- Geometry Definition ---
-  // Nodes (Coordinates in World Units)
-  const nodes = [
-    { id: 0, x: 100, y: 220, label: "B0" }, // Support Left (Pin)
-    { id: 1, x: 200, y: 220, label: "B1" },
-    { id: 2, x: 300, y: 220, label: "B2" },
-    { id: 3, x: 400, y: 220, label: "B3" },
-    { id: 4, x: 500, y: 220, label: "B4" },
-    { id: 5, x: 600, y: 220, label: "B5" },
-    { id: 6, x: 700, y: 220, label: "B6" }, // Support Right (Roller)
-    { id: 7, x: 200, y: 90,  label: "T1" },
-    { id: 8, x: 400, y: 90,  label: "T2" },
-    { id: 9, x: 600, y: 90,  label: "T3" }
-  ];
-
-  // Truss Members (Connecting Nodes)
-  const members = [
-    // Bottom Chords
-    { n1: 0, n2: 1, tag: "F1" },
-    { n1: 1, n2: 2, tag: "F2" },
-    { n1: 2, n2: 3, tag: "F4" },
-    { n1: 3, n2: 4 },
-    { n1: 4, n2: 5 },
-    { n1: 5, n2: 6 },
-    // Top Chords
-    { n1: 7, n2: 8, tag: "F3" },
-    { n1: 8, n2: 9 },
-    // Verticals
-    { n1: 1, n2: 7 },
-    { n1: 3, n2: 8 },
-    { n1: 5, n2: 9 },
-    // Diagonals
-    { n1: 0, n2: 7 },
-    { n1: 7, n2: 2 },
-    { n1: 2, n2: 8 },
-    { n1: 8, n2: 4 },
-    { n1: 4, n2: 9 },
-    { n1: 9, n2: 6 }
+  // --- Presets Data ---
+  const presets = [
+    {
+      name: "1. Bridge with Rectangular Segments",
+      question: "💬 Observation: Bridges are almost never built this way because rectangular frames lack triangulation stability.",
+      nodes: [
+        { id: 0, x: 100, y: 220, label: "B0" },
+        { id: 1, x: 300, y: 220, label: "B1" },
+        { id: 2, x: 500, y: 220, label: "B2" },
+        { id: 3, x: 700, y: 220, label: "B3" },
+        { id: 4, x: 100, y: 90,  label: "T0" },
+        { id: 5, x: 300, y: 90,  label: "T1" },
+        { id: 6, x: 500, y: 90,  label: "T2" },
+        { id: 7, x: 700, y: 90,  label: "T3" }
+      ],
+      members: [
+        { n1: 0, n2: 1 }, { n1: 1, n2: 2 }, { n1: 2, n2: 3 },
+        { n1: 4, n2: 5 }, { n1: 5, n2: 6 }, { n1: 6, n2: 7 },
+        { n1: 0, n2: 4 }, { n1: 1, n2: 5 }, { n1: 2, n2: 6 }, { n1: 3, n2: 7 }
+      ],
+      loadableNodes: [0, 1, 2, 3],
+      defaultLoadNodeIdx: 1,
+      pinNode: 0,
+      rollerNode: 3
+    },
+    {
+      name: "2. Warren Bridge with Triangular Segments",
+      question: "💬 Observation: Notice how triangular bays distribute forces efficiently across top and bottom chords without needing vertical posts.",
+      nodes: [
+        { id: 0, x: 100, y: 220, label: "B0" },
+        { id: 1, x: 300, y: 220, label: "B1" },
+        { id: 2, x: 500, y: 220, label: "B2" },
+        { id: 3, x: 700, y: 220, label: "B3" },
+        { id: 4, x: 200, y: 90,  label: "T1" },
+        { id: 5, x: 400, y: 90,  label: "T2" },
+        { id: 6, x: 600, y: 90,  label: "T3" }
+      ],
+      members: [
+        { n1: 0, n2: 1 }, { n1: 1, n2: 2 }, { n1: 2, n2: 3 },
+        { n1: 4, n2: 5 }, { n1: 5, n2: 6 },
+        { n1: 0, n2: 4 }, { n1: 4, n2: 1 }, { n1: 1, n2: 5 },
+        { n1: 5, n2: 2 }, { n1: 2, n2: 6 }, { n1: 6, n2: 3 }
+      ],
+      loadableNodes: [0, 1, 2, 3],
+      defaultLoadNodeIdx: 1,
+      pinNode: 0,
+      rollerNode: 3
+    },
+    {
+      name: "3. Smaller Scale Warren Bridge",
+      question: "💬 Question: How do member forces change when doubling the number of bays over the same span distance?",
+      nodes: [
+        { id: 0, x: 100, y: 220, label: "B0" },
+        { id: 1, x: 200, y: 220, label: "B1" },
+        { id: 2, x: 300, y: 220, label: "B2" },
+        { id: 3, x: 400, y: 220, label: "B3" },
+        { id: 4, x: 500, y: 220, label: "B4" },
+        { id: 5, x: 600, y: 220, label: "B5" },
+        { id: 6, x: 700, y: 220, label: "B6" },
+        { id: 7, x: 150, y: 90,  label: "T1" },
+        { id: 8, x: 250, y: 90,  label: "T2" },
+        { id: 9, x: 350, y: 90,  label: "T3" },
+        { id: 10, x: 450, y: 90, label: "T4" },
+        { id: 11, x: 550, y: 90, label: "T5" },
+        { id: 12, "x": 650, y: 90, label: "T6" }
+      ],
+      members: [
+        { n1: 0, n2: 1 }, { n1: 1, n2: 2 }, { n1: 2, n2: 3 }, { n1: 3, n2: 4 }, { n1: 4, n2: 5 }, { n1: 5, n2: 6 },
+        { n1: 7, n2: 8 }, { n1: 8, n2: 9 }, { n1: 9, n2: 10 }, { n1: 10, n2: 11 }, { n1: 11, n2: 12 },
+        { n1: 0, n2: 7 }, { n1: 7, n2: 1 }, { n1: 1, n2: 8 }, { n1: 8, n2: 2 }, { n1: 2, n2: 9 }, { n1: 9, n2: 3 },
+        { n1: 3, n2: 10 }, { n1: 10, n2: 4 }, { n1: 4, n2: 11 }, { n1: 11, n2: 5 }, { n1: 5, n2: 12 }, { n1: 12, n2: 6 }
+      ],
+      loadableNodes: [0, 1, 2, 3, 4, 5, 6],
+      defaultLoadNodeIdx: 3,
+      pinNode: 0,
+      rollerNode: 6
+    },
+    {
+      name: "4. Warren Bridge with Verticals",
+      question: "💬 Question: What is the primary purpose of adding verticals to a standard Warren truss?",
+      nodes: [
+        { id: 0, x: 100, y: 220, label: "B0" },
+        { id: 1, x: 200, y: 220, label: "B1" },
+        { id: 2, x: 300, y: 220, label: "B2" },
+        { id: 3, x: 400, y: 220, label: "B3" },
+        { id: 4, x: 500, y: 220, label: "B4" },
+        { id: 5, x: 600, y: 220, label: "B5" },
+        { id: 6, x: 700, y: 220, label: "B6" },
+        { id: 7, x: 200, y: 90,  label: "T1" },
+        { id: 8, x: 400, y: 90,  label: "T2" },
+        { id: 9, x: 600, y: 90,  label: "T3" }
+      ],
+      members: [
+        { n1: 0, n2: 1, tag: "F1" }, { n1: 1, n2: 2, tag: "F2" }, { n1: 2, n2: 3, tag: "F4" },
+        { n1: 3, n2: 4 }, { n1: 4, n2: 5 }, { n1: 5, n2: 6 },
+        { n1: 7, n2: 8, tag: "F3" }, { n1: 8, n2: 9 },
+        { n1: 1, n2: 7 }, { n1: 3, n2: 8 }, { n1: 5, n2: 9 },
+        { n1: 0, n2: 7 }, { n1: 7, n2: 2 }, { n1: 2, n2: 8 }, { n1: 8, n2: 4 }, { n1: 4, n2: 9 }, { n1: 9, n2: 6 }
+      ],
+      loadableNodes: [0, 1, 2, 3, 4, 5, 6],
+      defaultLoadNodeIdx: 4,
+      pinNode: 0,
+      rollerNode: 6
+    },
+    {
+      name: "5. Full Warren Bridge",
+      question: "💬 Question: What is the structural advantage of extending verticals across every panel joint?",
+      nodes: [
+        { id: 0, x: 100, y: 220, label: "B0" },
+        { id: 1, x: 200, y: 220, label: "B1" },
+        { id: 2, x: 300, y: 220, label: "B2" },
+        { id: 3, x: 400, y: 220, label: "B3" },
+        { id: 4, x: 500, y: 220, label: "B4" },
+        { id: 5, x: 600, y: 220, label: "B5" },
+        { id: 6, x: 700, y: 220, label: "B6" },
+        { id: 7, x: 100, y: 90,  label: "T0" },
+        { id: 8, x: 200, y: 90,  label: "T1" },
+        { id: 9, x: 300, y: 90,  label: "T2" },
+        { id: 10, x: 400, y: 90, label: "T3" },
+        { id: 11, x: 500, y: 90, label: "T4" },
+        { id: 12, x: 600, y: 90, label: "T5" },
+        { id: 13, x: 700, y: 90, label: "T6" }
+      ],
+      members: [
+        { n1: 0, n2: 1 }, { n1: 1, n2: 2 }, { n1: 2, n2: 3 }, { n1: 3, n2: 4 }, { n1: 4, n2: 5 }, { n1: 5, n2: 6 },
+        { n1: 7, n2: 8 }, { n1: 8, n2: 9 }, { n1: 9, n2: 10 }, { n1: 10, n2: 11 }, { n1: 11, n2: 12 }, { n1: 12, n2: 13 },
+        { n1: 0, n2: 7 }, { n1: 1, n2: 8 }, { n1: 2, n2: 9 }, { n1: 3, n2: 10 }, { n1: 4, n2: 11 }, { n1: 5, n2: 12 }, { n1: 6, n2: 13 },
+        { n1: 0, n2: 8 }, { n1: 8, n2: 2 }, { n1: 2, n2: 10 }, { n1: 10, n2: 4 }, { n1: 4, n2: 12 }, { n1: 12, n2: 6 }
+      ],
+      loadableNodes: [0, 1, 2, 3, 4, 5, 6],
+      defaultLoadNodeIdx: 3,
+      pinNode: 0,
+      rollerNode: 6
+    },
+    {
+      name: "6. Pratt vs. Warren",
+      question: "💬 Observation: In a Pratt truss under gravity load, diagonals act in tension (+) while shorter verticals act in compression (-).",
+      nodes: [
+        { id: 0, x: 100, y: 220, label: "B0" },
+        { id: 1, x: 200, y: 220, label: "B1" },
+        { id: 2, x: 300, y: 220, label: "B2" },
+        { id: 3, x: 400, y: 220, label: "B3" },
+        { id: 4, x: 500, y: 220, label: "B4" },
+        { id: 5, x: 600, y: 220, label: "B5" },
+        { id: 6, x: 700, y: 220, label: "B6" },
+        { id: 7, x: 100, y: 90,  label: "T0" },
+        { id: 8, x: 200, y: 90,  label: "T1" },
+        { id: 9, x: 300, y: 90,  label: "T2" },
+        { id: 10, x: 400, y: 90, label: "T3" },
+        { id: 11, x: 500, y: 90, label: "T4" },
+        { id: 12, x: 600, y: 90, label: "T5" },
+        { id: 13, x: 700, y: 90, label: "T6" }
+      ],
+      members: [
+        { n1: 0, n2: 1 }, { n1: 1, n2: 2 }, { n1: 2, n2: 3 }, { n1: 3, n2: 4 }, { n1: 4, n2: 5 }, { n1: 5, n2: 6 },
+        { n1: 7, n2: 8 }, { n1: 8, n2: 9 }, { n1: 9, n2: 10 }, { n1: 10, n2: 11 }, { n1: 11, n2: 12 }, { n1: 12, n2: 13 },
+        { n1: 0, n2: 7 }, { n1: 1, n2: 8 }, { n1: 2, n2: 9 }, { n1: 3, n2: 10 }, { n1: 4, n2: 11 }, { n1: 5, n2: 12 }, { n1: 6, n2: 13 },
+        { n1: 7, n2: 1 }, { n1: 8, n2: 2 }, { n1: 9, n2: 3 },
+        { n1: 13, n2: 5 }, { n1: 12, n2: 4 }, { n1: 11, n2: 3 }
+      ],
+      loadableNodes: [0, 1, 2, 3, 4, 5, 6],
+      defaultLoadNodeIdx: 3,
+      pinNode: 0,
+      rollerNode: 6
+    }
   ];
 
   // Interactive State
-  let activeLoadNode = 4; // Bottom joint B4
+  let currentPresetIdx = 3; // Default to Preset 4
+  let loadNodeSelectIdx = 4;
   let loadMagnitude = 50; // kN
   let showValues = true;
   let isDragging = false;
 
   // DOM Elements
+  const presetSelect = document.getElementById('presetSelect');
+  const presetQuestion = document.getElementById('presetQuestion');
   const nodeSelect = document.getElementById('nodeSelect');
   const magSelect = document.getElementById('magSelect');
   const nodeVal = document.getElementById('nodeVal');
@@ -335,26 +513,26 @@
   const svg = document.getElementById('trussSvg');
 
   // Matrix Structural Solver (2D Direct Stiffness Method)
-  function solveTruss(loadNodeIdx, loadMag) {
+  function solveTruss(nodes, members, pinIdx, rollerIdx, loadNodeIdx, loadMag) {
     const numNodes = nodes.length;
     const dof = numNodes * 2;
     let K = Array(dof).fill(0).map(() => Array(dof).fill(0));
     let F = Array(dof).fill(0);
 
-    // Apply vertical downward load (Y axis point down in SVG)
-    if (loadNodeIdx >= 0 && loadNodeIdx < 7) {
+    // Downward vertical force (+Y in SVG coords)
+    if (loadNodeIdx >= 0 && loadNodeIdx < numNodes) {
       F[loadNodeIdx * 2 + 1] = loadMag; 
     }
 
-    const EA = 1e6; // Elastic modulus * Area constant
+    const EA = 1e6;
 
-    // Assemble Global Stiffness Matrix
     members.forEach(m => {
       const n1 = nodes[m.n1];
       const n2 = nodes[m.n2];
       const dx = n2.x - n1.x;
       const dy = n2.y - n1.y;
       const L = Math.hypot(dx, dy);
+      if (L === 0) return;
       const c = dx / L;
       const s = dy / L;
 
@@ -373,10 +551,13 @@
       }
     });
 
-    // Boundary Conditions: 
-    // Node 0 (B0): Fixed X, Y (DOFs 0, 1)
-    // Node 6 (B6): Roller (Fixed Y, DOF 13)
-    const fixedDOFs = [0, 1, 13];
+    // Stabilization term for unstable non-triangulated frames (e.g., Preset 1)
+    for (let i = 0; i < dof; i++) {
+      K[i][i] += 1e-3;
+    }
+
+    // Boundary Conditions: Pin at pinIdx (X,Y), Roller at rollerIdx (Y)
+    const fixedDOFs = [pinIdx * 2, pinIdx * 2 + 1, rollerIdx * 2 + 1];
     const freeDOFs = [];
     for (let i = 0; i < dof; i++) {
       if (!fixedDOFs.includes(i)) freeDOFs.push(i);
@@ -393,20 +574,19 @@
       }
     }
 
-    // Solve matrix system
     const U_free = gaussianElimination(K_free, F_free);
     let U = Array(dof).fill(0);
     for (let i = 0; i < nFree; i++) {
-      U[freeDOFs[i]] = U_free[i];
+      U[freeDOFs[i]] = U_free[i] || 0;
     }
 
-    // Compute Axial Forces for each member
     return members.map(m => {
       const n1 = nodes[m.n1];
       const n2 = nodes[m.n2];
       const dx = n2.x - n1.x;
       const dy = n2.y - n1.y;
       const L = Math.hypot(dx, dy);
+      if (L === 0) return 0;
       const c = dx / L;
       const s = dy / L;
 
@@ -414,15 +594,10 @@
       const u2x = U[m.n2 * 2], u2y = U[m.n2 * 2 + 1];
 
       const du_axial = (u2x - u1x) * c + (u2y - u1y) * s;
-      let force = (EA / L) * du_axial;
-      
-      // Tension (+) / Compression (-)
-      // Note: In SVG downward movement is +Y, invert sign for structural conventions
-      return -force; 
+      return (EA / L) * du_axial; 
     });
   }
 
-  // Gaussian Elimination Solver
   function gaussianElimination(A, B) {
     const n = B.length;
     let M = A.map((row, i) => [...row, B[i]]);
@@ -447,33 +622,45 @@
 
     let x = Array(n).fill(0);
     for (let i = n - 1; i >= 0; i--) {
-      x[i] = M[i][n] / M[i][i];
-      for (let k = i - 1; k >= 0; k--) {
-        M[k][n] -= M[k][i] * x[i];
+      if (Math.abs(M[i][i]) < 1e-9) {
+        x[i] = 0;
+      } else {
+        x[i] = M[i][n] / M[i][i];
+        for (let k = i - 1; k >= 0; k--) {
+          M[k][n] -= M[k][i] * x[i];
+        }
       }
     }
     return x;
   }
 
-  // --- Rendering Functions ---
+  // Render Functions
   function renderSupports() {
+    const preset = presets[currentPresetIdx];
+    const pin = preset.nodes[preset.pinNode];
+    const roller = preset.nodes[preset.rollerNode];
     const g = document.getElementById('supportsGroup');
-    g.innerHTML = `
-      <!-- Pin Support Left (Node 0) -->
-      <polygon points="100,220 88,242 112,242" fill="#64748b" stroke="#334155" stroke-width="2"/>
-      <line x1="80" y1="242" x2="120" y2="242" stroke="#334155" stroke-width="3"/>
 
-      <!-- Roller Support Right (Node 6) -->
-      <polygon points="700,220 688,236 712,236" fill="#64748b" stroke="#334155" stroke-width="2"/>
-      <circle cx="692" cy="240" r="4" fill="#334155"/>
-      <circle cx="708" cy="240" r="4" fill="#334155"/>
-      <line x1="680" y1="245" x2="720" y2="245" stroke="#334155" stroke-width="2"/>
+    g.innerHTML = `
+      <!-- Pin Support Left -->
+      <polygon points="${pin.x},${pin.y} ${pin.x - 12},${pin.y + 22} ${pin.x + 12},${pin.y + 22}" fill="#64748b" stroke="#334155" stroke-width="2"/>
+      <line x1="${pin.x - 20}" y1="${pin.y + 22}" x2="${pin.x + 20}" y2="${pin.y + 22}" stroke="#334155" stroke-width="3"/>
+
+      <!-- Roller Support Right -->
+      <polygon points="${roller.x},${roller.y} ${roller.x - 12},${roller.y + 16} ${roller.x + 12},${roller.y + 16}" fill="#64748b" stroke="#334155" stroke-width="2"/>
+      <circle cx="${roller.x - 8}" cy="${roller.y + 20}" r="4" fill="#334155"/>
+      <circle cx="${roller.x + 8}" cy="${roller.y + 20}" r="4" fill="#334155"/>
+      <line x1="${roller.x - 20}" y1="${roller.y + 25}" x2="${roller.x + 20}" y2="${roller.y + 25}" stroke="#334155" stroke-width="2"/>
     `;
   }
 
   function render() {
-    const forces = solveTruss(activeLoadNode, loadMagnitude);
+    const preset = presets[currentPresetIdx];
+    const activeLoadNode = preset.loadableNodes[loadNodeSelectIdx];
+    const forces = solveTruss(preset.nodes, preset.members, preset.pinNode, preset.rollerNode, activeLoadNode, loadMagnitude);
     const maxForce = Math.max(...forces.map(Math.abs), 1);
+
+    renderSupports();
 
     // 1. Render Members
     const membersGroup = document.getElementById('membersGroup');
@@ -481,16 +668,15 @@
     membersGroup.innerHTML = '';
     labelsGroup.innerHTML = '';
 
-    members.forEach((m, idx) => {
-      const n1 = nodes[m.n1];
-      const n2 = nodes[m.n2];
+    preset.members.forEach((m, idx) => {
+      const n1 = preset.nodes[m.n1];
+      const n2 = preset.nodes[m.n2];
       const f = forces[idx];
 
       let strokeColor = '#94a3b8'; // Zero force
-      if (f > 0.01) strokeColor = '#ef4444';      // Tension
-      else if (f < -0.01) strokeColor = '#2563eb'; // Compression
+      if (f > 0.05) strokeColor = '#ef4444';      // Tension (+)
+      else if (f < -0.05) strokeColor = '#2563eb'; // Compression (-)
 
-      // Dynamic line width based on force magnitude
       const strokeWidth = 2.5 + (Math.abs(f) / maxForce) * 3.5;
 
       const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -504,7 +690,7 @@
       line.classList.add('member-line');
       membersGroup.appendChild(line);
 
-      // Member Text Labels
+      // Labels
       const midX = (n1.x + n2.x) / 2;
       const midY = (n1.y + n2.y) / 2;
 
@@ -534,11 +720,11 @@
     // 2. Render Joint Nodes
     const nodesGroup = document.getElementById('nodesGroup');
     nodesGroup.innerHTML = '';
-    nodes.forEach((n, idx) => {
+    preset.nodes.forEach((n, idx) => {
       const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
       circle.setAttribute('cx', n.x);
       circle.setAttribute('cy', n.y);
-      circle.setAttribute('r', idx === activeLoadNode ? 6 : 4.5);
+      circle.setAttribute('r', idx === activeLoadNode ? 6.5 : 4.5);
       circle.setAttribute('fill', idx === activeLoadNode ? '#d97706' : '#ffffff');
       circle.setAttribute('stroke', '#0f172a');
       circle.setAttribute('stroke-width', 2);
@@ -550,12 +736,11 @@
     loadGroup.innerHTML = '';
 
     if (loadMagnitude > 0) {
-      const loadNode = nodes[activeLoadNode];
+      const loadNode = preset.nodes[activeLoadNode];
       const arrowLength = 35 + (loadMagnitude / 100) * 35;
       const startY = loadNode.y;
       const endY = loadNode.y + arrowLength;
 
-      // Shaft Line
       const arrowLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
       arrowLine.setAttribute('x1', loadNode.x);
       arrowLine.setAttribute('y1', startY);
@@ -566,7 +751,6 @@
       arrowLine.setAttribute('marker-end', 'url(#arrowhead)');
       loadGroup.appendChild(arrowLine);
 
-      // Load Value Tag
       const loadText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       loadText.setAttribute('x', loadNode.x);
       loadText.setAttribute('y', endY + 20);
@@ -578,16 +762,31 @@
       loadGroup.appendChild(loadText);
     }
 
-    // UI Updates
-    nodeVal.textContent = nodes[activeLoadNode].label;
+    // Controls Update
+    presetQuestion.textContent = preset.question;
+    nodeVal.textContent = `Joint ${preset.nodes[activeLoadNode].label}`;
     magVal.textContent = `${loadMagnitude} kN`;
-    nodeSelect.value = activeLoadNode;
+    nodeSelect.min = 0;
+    nodeSelect.max = preset.loadableNodes.length - 1;
+    nodeSelect.value = loadNodeSelectIdx;
     magSelect.value = loadMagnitude;
   }
 
-  // --- Interaction & Event Handlers ---
+  // Change preset logic
+  function switchPreset(index) {
+    currentPresetIdx = index;
+    const preset = presets[currentPresetIdx];
+    loadNodeSelectIdx = preset.defaultLoadNodeIdx;
+    render();
+  }
+
+  // --- Interaction & Events ---
+  presetSelect.addEventListener('change', (e) => {
+    switchPreset(parseInt(e.target.value));
+  });
+
   nodeSelect.addEventListener('input', (e) => {
-    activeLoadNode = parseInt(e.target.value);
+    loadNodeSelectIdx = parseInt(e.target.value);
     render();
   });
 
@@ -602,14 +801,14 @@
   });
 
   resetBtn.addEventListener('click', () => {
-    activeLoadNode = 4;
+    const preset = presets[currentPresetIdx];
+    loadNodeSelectIdx = preset.defaultLoadNodeIdx;
     loadMagnitude = 50;
     showValues = true;
     toggleValues.checked = true;
     render();
   });
 
-  // Dragging interaction logic on SVG
   function getSVGCoords(e) {
     const rect = svg.getBoundingClientRect();
     const scaleX = 800 / rect.width;
@@ -628,22 +827,24 @@
   function handleMove(e) {
     if (!isDragging) return;
     const coords = getSVGCoords(e.touches ? e.touches[0] : e);
+    const preset = presets[currentPresetIdx];
 
-    // Find closest bottom chord node (Nodes 0 to 6)
-    let closestNodeIdx = 0;
+    // Find closest loadable node
+    let closestSelectIdx = 0;
     let minDist = Infinity;
-    for (let i = 0; i < 7; i++) {
-      const dist = Math.abs(nodes[i].x - coords.x);
+    preset.loadableNodes.forEach((nodeIdx, selIdx) => {
+      const node = preset.nodes[nodeIdx];
+      const dist = Math.abs(node.x - coords.x);
       if (dist < minDist) {
         minDist = dist;
-        closestNodeIdx = i;
+        closestSelectIdx = selIdx;
       }
-    }
-    activeLoadNode = closestNodeIdx;
+    });
+    loadNodeSelectIdx = closestSelectIdx;
 
-    // Adjust load magnitude via vertical dragging
-    const loadNode = nodes[activeLoadNode];
-    const dy = coords.y - loadNode.y;
+    // Magnitude adjustment via vertical drag
+    const activeLoadNode = preset.nodes[preset.loadableNodes[loadNodeSelectIdx]];
+    const dy = coords.y - activeLoadNode.y;
     if (dy > 10) {
       const calculatedMag = Math.min(100, Math.max(5, Math.round(((dy - 20) / 60) * 100)));
       loadMagnitude = calculatedMag;
@@ -665,9 +866,8 @@
   window.addEventListener('touchmove', handleMove, { passive: true });
   window.addEventListener('touchend', handleEnd);
 
-  // Initialize
-  renderSupports();
-  render();
+  // Initialize Default
+  switchPreset(3);
 </script>
 </body>
 </html>
